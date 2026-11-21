@@ -40,6 +40,25 @@ export function formatCount(n: number | null | undefined): string {
   return new Intl.NumberFormat('tr-TR').format(n ?? 0);
 }
 
-export function fullNameOf(user: { firstName?: string; lastName?: string } | null | undefined): string {
-  return [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Kullanıcı';
+// Takma ad yalnızca kişinin kendi kaydında gelir; başkaları için sunucu
+// takma adı firstName alanında gönderir.
+export function fullNameOf(
+  user: { firstName?: string; lastName?: string; nickname?: string | null } | null | undefined,
+): string {
+  return user?.nickname || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Kullanıcı';
+}
+
+// Sohbet ayracı: "Bugün 14:32", "Dün 09:10", "Çarşamba 18:05", "3 Eki 11:00".
+export function chatTimeLabel(value: string | null | undefined, now: Date = new Date()): string {
+  const dt = parseServerDate(value);
+  if (!dt) return '';
+  const time = dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(now) - startOf(dt)) / 86400000);
+  if (days <= 0) return `Bugün ${time}`;
+  if (days === 1) return `Dün ${time}`;
+  if (days < 7) return `${dt.toLocaleDateString('tr-TR', { weekday: 'long' })} ${time}`;
+  const sameYear = dt.getFullYear() === now.getFullYear();
+  const date = dt.toLocaleDateString('tr-TR', sameYear ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
+  return `${date} ${time}`;
 }

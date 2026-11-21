@@ -1,5 +1,6 @@
+import { ListSkeleton } from '@/components/feedback';
 import { Alert, FlatList, View } from 'react-native';
-import { Avatar, Button, Card, EmptyState, ErrorState, Loading, Txt, useListContent } from '@/components/ui';
+import { Avatar, Button, Card, EmptyState, ErrorState, Txt, useListContent } from '@/components/ui';
 import { errorMessage } from '@/api/client';
 import { acceptMessageRequest, listMessageRequests, rejectMessageRequest } from '@/api/endpoints';
 import { relativeTime } from '@/utils/format';
@@ -19,7 +20,7 @@ export default function MessageRequestsScreen() {
     }
   };
 
-  if (list.loading && list.items.length === 0) return <Loading />;
+  if (list.loading && list.items.length === 0) return <ListSkeleton kind="row" count={6} />;
   if (list.error && list.items.length === 0) return <ErrorState message={list.error} onRetry={list.reload} />;
 
   return (
@@ -34,7 +35,7 @@ export default function MessageRequestsScreen() {
       renderItem={({ item }) => (
         <Card style={{ gap: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Avatar name={item.senderName} size={44} />
+            <Avatar name={item.senderName} size={40} />
             <View style={{ flex: 1 }}>
               <Txt variant="small" style={{ fontWeight: '700' }}>{item.senderName}</Txt>
               <Txt variant="caption" muted>Sana mesaj göndermek istiyor · {relativeTime(item.createdAt)}</Txt>

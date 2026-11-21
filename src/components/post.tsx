@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { Alert, Image, Pressable, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, Animated, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Card, Chip, Txt } from '@/components/ui';
+import { Avatar, Chip, Txt } from '@/components/ui';
+import { ActionSheet, useToast, type SheetAction } from '@/components/feedback';
+import { PostMedia } from '@/components/media';
+import { hapticLight, hapticSelect } from '@/utils/haptics';
 import { errorMessage } from '@/api/client';
 import {
   reactToPost,
@@ -13,7 +16,7 @@ import {
 } from '@/api/endpoints';
 import type { Post, ReactionValue } from '@/api/types';
 import { useTheme } from '@/theme/ThemeContext';
-import { MIN_TOUCH, spacing } from '@/theme/tokens';
+import { spacing } from '@/theme/tokens';
 import { formatCount, relativeTime } from '@/utils/format';
 
 // Tepki sayaçlarını (faydalı / faydalı değil) iyimser olarak günceller.
@@ -38,41 +41,49 @@ export function PostTypeChip({ type }: { type: Post['postType'] }) {
   return <Chip label={m.label} tone={m.tone} icon={m.icon} />;
 }
 
-// Tepki + kaydet + (isteğe bağlı) şikayet çubuğu.
-export function PostActions({ post, onChange, ownPost }: { post: Post; onChange: (next: Post) => void; ownPost: boolean }) {
-  const t = useTheme();
-  const [busy, setBusy] = useState(false);
+// Tepki / kaydet / şikayet işlemlerini (iyimser güncelleme + geri alma) tek yerde toplar.
+export function usePostActions(post: Post, onChange: (next: Post) => void, ownPost: boolean) {
+  const toast = useToast();
+  const busy = useRef(false);
 
-  const react = async (value: ReactionValue) => {
-    if (busy || ownPost) return;
-    const target = post.myReaction === value ? null : value;
+  const react = async (value: ReactionValue, forceOn = false) => {
+    if (busy.current) return;
+    if (ownPost) {
+      toast.show('Kendi gönderine oy veremezsin.');
+      return;
+    }
+    const target = post.myReaction === value && !forceOn ? null : value;
+    if (target === post.myReaction) return;
     const before = post;
     onChange(applyReaction(post, target));
-    setBusy(true);
+    busy.current = true;
     try {
       if (target) await reactToPost(post.id, target);
       else await removePostReaction(post.id);
     } catch (err) {
       onChange(before);
-      Alert.alert('İşlem yapılamadı', errorMessage(err));
+      toast.show(errorMessage(err), 'error');
     } finally {
-      setBusy(false);
+      busy.current = false;
     }
   };
 
   const toggleSave = async () => {
-    if (busy) return;
+    if (busy.current) return;
     const before = post;
     onChange({ ...post, saved: !post.saved, savedCount: Math.max(0, post.savedCount + (post.saved ? -1 : 1)) });
-    setBusy(true);
+    busy.current = true;
     try {
       if (before.saved) await unsavePost(post.id);
-      else await savePost(post.id);
+      else {
+        await savePost(post.id);
+        toast.show('Kaydedilenlere eklendi.', 'success');
+      }
     } catch (err) {
       onChange(before);
-      Alert.alert('İşlem yapılamadı', errorMessage(err));
+      toast.show(errorMessage(err), 'error');
     } finally {
-      setBusy(false);
+      busy.current = false;
     }
   };
 
@@ -85,99 +96,95 @@ export function PostActions({ post, onChange, ownPost }: { post: Post; onChange:
         onPress: async () => {
           try {
             await reportPost(post.id);
-            Alert.alert('Teşekkürler', 'Şikayetin alındı.');
+            toast.show('Şikayetin alındı, teşekkürler.', 'success');
           } catch (err) {
-            Alert.alert('İşlem yapılamadı', errorMessage(err));
+            toast.show(errorMessage(err), 'error');
           }
         },
       },
     ]);
   };
 
+  const share = () => router.push({ pathname: '/share-post', params: { postId: String(post.id) } });
+
+  return { react, toggleSave, report, share };
+}
+
+// Dokunulduğunda yaylanan simge düğmesi (Instagram'daki beğeni hissi).
+function IconButton({
+  icon,
+  activeIcon,
+  active,
+  color,
+  activeColor,
+  label,
+  count,
+  onPress,
+  a11y,
+  size = 22,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  activeIcon?: keyof typeof Ionicons.glyphMap;
+  active?: boolean;
+  color: string;
+  activeColor?: string;
+  label?: string;
+  count?: string;
+  onPress: () => void;
+  a11y: string;
+  size?: number;
+}) {
+  const scale = useState(() => new Animated.Value(1))[0];
+  const press = () => {
+    hapticLight();
+    scale.setValue(0.7);
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 22, bounciness: 18 }).start();
+    onPress();
+  };
+  const fg = active && activeColor ? activeColor : color;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
-      <ActionButton
-        icon={post.myReaction === 'HELPFUL' ? 'thumbs-up' : 'thumbs-up-outline'}
-        label={`Faydalı ${formatCount(post.helpfulCount)}`}
-        active={post.myReaction === 'HELPFUL'}
-        activeColor={t.apricotInk}
-        activeBg={t.apricotSoft}
-        disabled={ownPost}
-        onPress={() => react('HELPFUL')}
-        a11y={ownPost ? 'Kendi gönderine oy veremezsin' : 'Faydalı bul'}
-      />
-      <ActionButton
-        icon={post.myReaction === 'NOT_HELPFUL' ? 'thumbs-down' : 'thumbs-down-outline'}
-        label={formatCount(post.notHelpfulCount)}
-        active={post.myReaction === 'NOT_HELPFUL'}
-        activeColor={t.rose}
-        activeBg={t.roseSoft}
-        disabled={ownPost}
-        onPress={() => react('NOT_HELPFUL')}
-        a11y="Faydalı bulma"
-      />
-      <ActionButton
-        icon={post.saved ? 'bookmark' : 'bookmark-outline'}
-        label={post.saved ? 'Kaydedildi' : 'Kaydet'}
-        active={post.saved}
-        activeColor={t.primary}
-        activeBg={t.primarySoft}
-        onPress={toggleSave}
-        a11y={post.saved ? 'Kaydı kaldır' : 'Kaydet'}
-      />
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label ?? a11y}
+      accessibilityState={{ selected: !!active }}
+      onPress={press}
+      hitSlop={6}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, minWidth: 44, justifyContent: 'center', paddingHorizontal: 8 }}
+    >
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Ionicons name={active && activeIcon ? activeIcon : icon} size={size} color={fg} />
+      </Animated.View>
+      {count ? <Txt variant="caption" color={fg} style={{ fontSize: 13 }}>{count}</Txt> : null}
+    </Pressable>
+  );
+}
+
+// Gönderi detayındaki eylem çubuğu (kart ile aynı dil).
+export function PostActions({ post, onChange, ownPost }: { post: Post; onChange: (next: Post) => void; ownPost: boolean }) {
+  const t = useTheme();
+  const a = usePostActions(post, onChange, ownPost);
+  const [menu, setMenu] = useState(false);
+  const actions: SheetAction[] = [
+    ...(!ownPost ? [{ label: 'Şikayet et', icon: 'flag-outline' as const, destructive: true, onPress: a.report }] : []),
+  ];
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+      <IconButton icon="thumbs-up-outline" activeIcon="thumbs-up" active={post.myReaction === 'HELPFUL'} color={t.inkSoft} activeColor={t.primary} count={formatCount(post.helpfulCount)} label={`Faydalı, ${post.helpfulCount}`} a11y="Faydalı bul" onPress={() => a.react('HELPFUL')} />
+      <IconButton icon="thumbs-down-outline" activeIcon="thumbs-down" active={post.myReaction === 'NOT_HELPFUL'} color={t.inkSoft} activeColor={t.rose} count={formatCount(post.notHelpfulCount)} label={`Faydalı değil, ${post.notHelpfulCount}`} a11y="Faydalı bulma" onPress={() => a.react('NOT_HELPFUL')} />
+      <IconButton icon="paper-plane-outline" color={t.inkSoft} a11y="Mesajla paylaş" onPress={a.share} />
+      <View style={{ flex: 1 }} />
+      <IconButton icon="bookmark-outline" activeIcon="bookmark" active={post.saved} color={t.inkSoft} activeColor={t.primary} a11y={post.saved ? 'Kaydı kaldır' : 'Kaydet'} onPress={a.toggleSave} />
       {!ownPost && (
-        <ActionButton icon="flag-outline" label="" onPress={report} a11y="Şikayet et" />
+        <>
+        <IconButton icon="ellipsis-horizontal" color={t.inkSoft} a11y="Diğer seçenekler" size={20} onPress={() => { hapticSelect(); setMenu(true); }} />
+        <ActionSheet visible={menu} actions={actions} onClose={() => setMenu(false)} />
+        </>
       )}
     </View>
   );
 }
 
-function ActionButton({
-  icon,
-  label,
-  active,
-  activeColor,
-  activeBg,
-  onPress,
-  disabled,
-  a11y,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  active?: boolean;
-  activeColor?: string;
-  activeBg?: string;
-  onPress: () => void;
-  disabled?: boolean;
-  a11y: string;
-}) {
-  const t = useTheme();
-  const fg = active && activeColor ? activeColor : t.inkSoft;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label ? `${a11y}, ${label}` : a11y}
-      accessibilityState={{ selected: !!active, disabled: !!disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        minHeight: MIN_TOUCH,
-        paddingHorizontal: 12,
-        borderRadius: 999,
-        backgroundColor: active && activeBg ? activeBg : 'transparent',
-        opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
-      })}
-    >
-      <Ionicons name={icon} size={19} color={fg} />
-      {label ? <Txt variant="caption" color={fg}>{label}</Txt> : null}
-    </Pressable>
-  );
-}
-
-// Akış / liste kartı.
+// Akış / liste kartı: kenardan kenara, Instagram gönderisi düzeninde.
 export function PostCard({
   post,
   onChange,
@@ -190,44 +197,62 @@ export function PostCard({
   showGroup?: boolean;
 }) {
   const t = useTheme();
+  const own = post.authorId === ownId;
+  const a = usePostActions(post, onChange, own);
+  const [menu, setMenu] = useState(false);
   const open = () => router.push({ pathname: '/post/[id]', params: { id: String(post.id) } });
+  const hasMedia = post.attachments?.length > 0;
+
+  const actions: SheetAction[] = [
+    { label: post.saved ? 'Kaydı kaldır' : 'Kaydet', icon: post.saved ? 'bookmark' : 'bookmark-outline', onPress: a.toggleSave },
+    { label: 'Mesajla paylaş', icon: 'paper-plane-outline', onPress: a.share },
+    ...(!own ? [{ label: 'Şikayet et', icon: 'flag-outline' as const, destructive: true, onPress: a.report }] : []),
+  ];
+
   return (
-    <Card style={{ gap: spacing.md }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Gönderiyi aç: ${post.title}`} onPress={open} style={{ gap: spacing.sm }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-          <Avatar name={post.authorName} size={38} />
+    <View style={{ backgroundColor: t.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: t.border, marginHorizontal: -spacing.lg, paddingTop: spacing.md }}>
+      {/* Başlık satırı */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: spacing.lg, paddingBottom: spacing.md }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${post.authorName} profili`} onPress={() => router.push({ pathname: '/users/[id]', params: { id: String(post.authorId) } })} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+          <Avatar name={post.authorName} size={32} />
           <View style={{ flex: 1 }}>
-            <Txt variant="small" style={{ fontWeight: '700' }} numberOfLines={1}>
-              {post.authorName}
-            </Txt>
+            <Txt variant="small" style={{ fontWeight: '700' }} numberOfLines={1}>{post.authorName}</Txt>
             <Txt variant="caption" muted numberOfLines={1}>
               {showGroup && post.diseaseGroupName ? `${post.diseaseGroupName} · ` : ''}
               {relativeTime(post.createdAt)}
             </Txt>
           </View>
-          <PostTypeChip type={post.postType} />
-        </View>
+        </Pressable>
+        <PostTypeChip type={post.postType} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Diğer seçenekler" hitSlop={8} onPress={() => { hapticSelect(); setMenu(true); }} style={{ width: 36, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="ellipsis-horizontal" size={20} color={t.inkSoft} />
+        </Pressable>
+      </View>
+
+      {hasMedia && <PostMedia attachments={post.attachments} onDoubleTap={() => a.react('HELPFUL', true)} />}
+
+      {/* Metin */}
+      <Pressable accessibilityRole="button" accessibilityLabel={`Gönderiyi aç: ${post.title}`} onPress={open} style={{ paddingHorizontal: spacing.lg, paddingTop: hasMedia ? spacing.md : 0, paddingBottom: spacing.sm, gap: 4 }}>
         {post.pinned && <Txt variant="caption" color={t.primary}>Sabitlenmiş</Txt>}
         <Txt variant="h3">{post.title}</Txt>
-        <Txt variant="small" muted numberOfLines={4}>
-          {post.content}
-        </Txt>
-        {post.attachments?.length > 0 && (
-          <Image source={{ uri: post.attachments[0].url }} resizeMode="cover" style={{ width: '100%', height: 160, borderRadius: 12, backgroundColor: t.surfaceAlt }} accessibilityLabel="Gönderideki fotoğraf" />
-        )}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name="chatbubble-outline" size={15} color={t.inkMuted} />
-          <Txt variant="caption" muted>
-            {formatCount(post.commentCount)} yorum
+        <Txt variant="small" muted numberOfLines={hasMedia ? 2 : 5}>{post.content}</Txt>
+        {post.postType === 'QUESTION' && (
+          <Txt variant="caption" color={post.acceptedCommentId ? t.primary : t.sky}>
+            {post.acceptedCommentId ? 'Cevaplandı' : 'Cevap bekliyor'}
           </Txt>
-          {post.postType === 'QUESTION' && (
-            <Txt variant="caption" color={post.acceptedCommentId ? t.primary : t.sky}>
-              {post.acceptedCommentId ? '· Cevaplandı' : '· Cevap bekliyor'}
-            </Txt>
-          )}
-        </View>
+        )}
       </Pressable>
-      <PostActions post={post} onChange={onChange} ownPost={post.authorId === ownId} />
-    </Card>
+
+      {/* Eylem çubuğu: her zaman gönderinin altında */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, paddingBottom: spacing.xs, borderTopWidth: 1, borderTopColor: t.border, marginTop: spacing.xs }}>
+        <IconButton icon="thumbs-up-outline" activeIcon="thumbs-up" active={post.myReaction === 'HELPFUL'} color={t.inkSoft} activeColor={t.primary} count={formatCount(post.helpfulCount)} label={`Faydalı, ${post.helpfulCount}`} a11y="Faydalı bul" onPress={() => a.react('HELPFUL')} />
+        <IconButton icon="thumbs-down-outline" activeIcon="thumbs-down" active={post.myReaction === 'NOT_HELPFUL'} color={t.inkSoft} activeColor={t.rose} count={formatCount(post.notHelpfulCount)} label={`Faydalı değil, ${post.notHelpfulCount}`} a11y="Faydalı bulma" onPress={() => a.react('NOT_HELPFUL')} />
+        <IconButton icon="chatbubble-outline" color={t.inkSoft} count={formatCount(post.commentCount)} label={`Yorumlar, ${post.commentCount}`} a11y="Yorumlar" onPress={open} />
+        <IconButton icon="paper-plane-outline" color={t.inkSoft} a11y="Mesajla paylaş" onPress={a.share} />
+        <View style={{ flex: 1 }} />
+        <IconButton icon="bookmark-outline" activeIcon="bookmark" active={post.saved} color={t.inkSoft} activeColor={t.primary} a11y={post.saved ? 'Kaydı kaldır' : 'Kaydet'} onPress={a.toggleSave} />
+      </View>
+      <ActionSheet visible={menu} actions={actions} onClose={() => setMenu(false)} />
+    </View>
   );
 }

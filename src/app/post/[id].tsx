@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, TextInput, View } from 'react-native';
+import { useRef, useState, type ComponentRef, type RefObject } from 'react';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, TextInput, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Banner, Button, ErrorState, Loading, Txt } from '@/components/ui';
-import { PostActions, PostTypeChip } from '@/components/post';
+import { PostActions, PostTypeChip, applyReaction } from '@/components/post';
+import { PostMedia } from '@/components/media';
 import { CommentRow } from '@/components/comments';
 import { errorMessage } from '@/api/client';
 import {
@@ -13,6 +14,7 @@ import {
   deletePost,
   getPost,
   listComments,
+  reactToPost,
   removePollVote,
   unacceptAnswer,
   votePoll,
@@ -23,7 +25,10 @@ import { useTheme } from '@/theme/ThemeContext';
 import { LIMITS } from '@/utils/validation';
 import { formatCount, relativeTime } from '@/utils/format';
 import { useAsync } from '@/utils/useAsync';
+import { CRISIS_LINE_NAME } from '@/config';
 import { usePagedList } from '@/utils/usePagedList';
+
+type TextInputHandle = ComponentRef<typeof TextInput>;
 
 export default function PostScreen() {
   const kbOffset = useSafeAreaInsets().top + (Platform.OS === 'ios' ? 44 : 56);
@@ -37,6 +42,9 @@ export default function PostScreen() {
 
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
+  // Ana yorum id -> o yoruma bu ekranda eklenen yanıt sayısı (yanıt listesini tazeler).
+  const [replyVersions, setReplyVersions] = useState<Record<number, number>>({});
+  const inputRef = useRef<TextInputHandle>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
@@ -46,6 +54,12 @@ export default function PostScreen() {
 
   const own = post.authorId === user?.id;
   const setPost = (next: Post) => postState.setData(next);
+
+  // Yanıtla: kime yazıldığını gösteren bant açılır ve yazma alanı odaklanır.
+  const startReply = (c: Comment) => {
+    setReplyTo(c);
+    inputRef.current?.focus();
+  };
 
   const send = async () => {
     const content = text.trim();
@@ -57,11 +71,17 @@ export default function PostScreen() {
     setSendError(null);
     setSending(true);
     try {
-      const created = await createComment(postId, content, replyTo?.id);
+      // Yanıtlar tek düzeydir: bir yanıta yanıt yazılırsa o da aynı ana yorumun
+      // altına düşer; kime yazıldığı metnin başındaki "@Ad" ile belli olur.
+      const rootId = replyTo ? replyTo.parentCommentId ?? replyTo.id : undefined;
+      const mention = replyTo?.parentCommentId ? `@${replyTo.authorName}` : '';
+      const body = mention && !content.startsWith(mention) ? `${mention} ${content}` : content;
+      await createComment(postId, body, rootId);
       setText('');
       setReplyTo(null);
-      if (created.parentCommentId) {
-        comments.setItems((prev) => prev.map((c) => (c.id === created.parentCommentId ? { ...c, replyCount: c.replyCount + 1 } : c)));
+      if (rootId) {
+        comments.setItems((prev) => prev.map((c) => (c.id === rootId ? { ...c, replyCount: c.replyCount + 1 } : c)));
+        setReplyVersions((prev) => ({ ...prev, [rootId]: (prev[rootId] ?? 0) + 1 }));
       } else {
         await comments.refresh();
       }
@@ -113,7 +133,7 @@ export default function PostScreen() {
   const header = (
     <View style={{ gap: 12, paddingBottom: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Avatar name={post.authorName} size={42} />
+        <Avatar name={post.authorName} size={40} />
         <View style={{ flex: 1 }}>
           <Txt variant="small" style={{ fontWeight: '700' }}>{post.authorName}</Txt>
           <Txt variant="caption" muted>
@@ -127,14 +147,12 @@ export default function PostScreen() {
       <Txt variant="h2">{post.title}</Txt>
       <Txt>{post.content}</Txt>
       {post.attachments?.length > 0 && (
-        <View style={{ gap: 8 }}>
-          {[...post.attachments].sort((a, b) => a.sortOrder - b.sortOrder).map((a) => (
-            <Image key={a.id} source={{ uri: a.url }} resizeMode="cover" style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: 14, backgroundColor: t.surfaceAlt }} accessibilityLabel="Gönderideki fotoğraf" />
-          ))}
+        <View style={{ marginHorizontal: -16 }}>
+          <PostMedia attachments={post.attachments} onDoubleTap={() => { if (!own && post.myReaction !== 'HELPFUL') { setPost(applyReaction(post, 'HELPFUL')); reactToPost(post.id, 'HELPFUL').catch(() => setPost(post)); } }} />
         </View>
       )}
       {post.flaggedSensitive && (
-        <Banner text="Zor bir dönemden geçiyorsan yalnız değilsin. 182 ALO Yaşam Hattı'ndan destek alabilirsin." />
+        <Banner text={`Zor bir dönemden geçiyorsan yalnız değilsin. Acil bir durumda ${CRISIS_LINE_NAME} 7/24 ücretsiz aranabilir.`} />
       )}
       {post.postType === 'POLL' && post.poll && (
         <View style={{ gap: 8 }}>
@@ -169,12 +187,6 @@ export default function PostScreen() {
         </View>
       )}
       <PostActions post={post} onChange={setPost} ownPost={own} />
-      <Button
-        title="Mesajla paylaş"
-        variant="outline"
-        icon="paper-plane-outline"
-        onPress={() => router.push({ pathname: '/share-post', params: { postId: String(post.id) } })}
-      />
       {own && <Button title="Gönderiyi sil" variant="ghost" icon="trash-outline" onPress={removePost} />}
       <Txt variant="h3">Yorumlar ({formatCount(post.commentCount)})</Txt>
     </View>
@@ -198,7 +210,7 @@ export default function PostScreen() {
             comments.refresh();
           }}
           ListEmptyComponent={
-            comments.loading ? <Loading /> : <Txt variant="small" muted>Henüz yorum yok. İlk yorumu sen yaz.</Txt>
+            comments.loading ? <Loading /> : <Txt variant="small" muted>Henüz yorum yok. İlk yazan sen ol.</Txt>
           }
           renderItem={({ item }) => (
             <CommentRow
@@ -207,10 +219,14 @@ export default function PostScreen() {
               isAccepted={post.acceptedCommentId === item.id}
               canAccept={own && post.postType === 'QUESTION' && !item.deleted}
               onAccept={toggleAccept}
-              onReply={setReplyTo}
+              replyVersion={replyVersions[item.id] ?? 0}
+              onReply={startReply}
               onChange={(next) => comments.setItems((prev) => prev.map((c) => (c.id === next.id ? next : c)))}
               onDeleted={(cid) => {
-                comments.setItems((prev) => prev.filter((c) => c.id !== cid));
+                // Yanıtı olan yorum yer tutucu olarak kalır; yanıtları kaybolmaz.
+                comments.setItems((prev) =>
+                  prev.flatMap((c) => (c.id !== cid ? [c] : c.replyCount > 0 ? [{ ...c, deleted: true }] : [])),
+                );
                 setPost({ ...post, commentCount: Math.max(0, post.commentCount - 1) });
               }}
             />
@@ -218,17 +234,25 @@ export default function PostScreen() {
         />
         <View style={{ borderTopWidth: 1, borderTopColor: t.border, backgroundColor: t.surface, padding: 10, gap: 6 }}>
           {replyTo && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Txt variant="caption" muted style={{ flex: 1 }} numberOfLines={1}>{replyTo.authorName} kişisine yanıt</Txt>
-              <Pressable accessibilityRole="button" accessibilityLabel="Yanıtı iptal et" onPress={() => setReplyTo(null)} hitSlop={10}>
-                <Ionicons name="close-circle" size={20} color={t.inkMuted} />
+            <View
+              accessibilityLiveRegion="polite"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: t.primarySoft, borderRadius: 12, paddingLeft: 12 }}
+            >
+              <Txt variant="small" style={{ flex: 1, fontWeight: '700' }}>{replyTo.authorName} kişisine yanıt yazıyorsun</Txt>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Yanıtlamaktan vazgeç"
+                onPress={() => setReplyTo(null)}
+                style={{ minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' }}
+              >
+                <Txt variant="small" color={t.primary} style={{ fontWeight: '700' }}>Vazgeç</Txt>
               </Pressable>
             </View>
           )}
           {sendError && <Txt variant="caption" color={t.rose}>{sendError}</Txt>}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
             <View style={{ flex: 1, backgroundColor: t.background, borderRadius: 20, borderWidth: 1, borderColor: t.borderStrong, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center' }}>
-              <TextInputLite value={text} onChangeText={setText} placeholder="Yorum yaz..." color={t.ink} placeholderColor={t.inkMuted} />
+              <TextInputLite inputRef={inputRef} value={text} onChangeText={setText} placeholder={replyTo ? 'Yanıtını yaz…' : 'Yorum yaz…'} color={t.ink} placeholderColor={t.inkSoft} />
             </View>
             <Pressable
               accessibilityRole="button"
@@ -246,17 +270,18 @@ export default function PostScreen() {
   );
 }
 
-function TextInputLite({ value, onChangeText, placeholder, color, placeholderColor }: { value: string; onChangeText: (v: string) => void; placeholder: string; color: string; placeholderColor: string }) {
+function TextInputLite({ inputRef, value, onChangeText, placeholder, color, placeholderColor }: { inputRef: RefObject<TextInputHandle | null>; value: string; onChangeText: (v: string) => void; placeholder: string; color: string; placeholderColor: string }) {
   return (
     <TextInput
-      accessibilityLabel="Yorum yaz"
+      ref={inputRef}
+      accessibilityLabel={placeholder}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={placeholderColor}
       multiline
       maxLength={LIMITS.COMMENT_MAX}
-      style={{ color, fontSize: 16, maxHeight: 110, paddingVertical: 10 }}
+      style={{ color, fontSize: 17, maxHeight: 130, paddingVertical: 10 }}
     />
   );
 }

@@ -21,7 +21,7 @@ async function readStored(): Promise<StoredAuth | null> {
 
 async function writeStored(value: StoredAuth | null): Promise<void> {
   try {
-    if (value) await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(value));
+    if (value) await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(value), { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
     else await SecureStore.deleteItemAsync(STORE_KEY);
   } catch {
     // Güvenli depolama kullanılamıyorsa oturum yalnızca bellekte yaşar.

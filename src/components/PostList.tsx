@@ -1,5 +1,6 @@
 import { ActivityIndicator, FlatList, View, type ListRenderItem } from 'react-native';
-import { EmptyState, ErrorState, Loading, useListContent } from '@/components/ui';
+import { EmptyState, ErrorState, useListContent } from '@/components/ui';
+import { ListSkeleton } from '@/components/feedback';
 import { PostCard } from '@/components/post';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/theme/ThemeContext';
@@ -42,8 +43,8 @@ export default function PostList({
   if (list.loading && list.items.length === 0) {
     return (
       <View style={{ flex: 1 }}>
-        {header}
-        <Loading />
+        <View style={{ padding: spacing.lg, paddingBottom: 0 }}>{header}</View>
+        <ListSkeleton kind="post" />
       </View>
     );
   }

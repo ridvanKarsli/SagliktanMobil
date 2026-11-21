@@ -22,6 +22,8 @@ export type Palette = {
   lilac: string;
   lilacSoft: string;
   rose: string;
+  // rose zemin üzerindeki yazı/ikon rengi (koyu temada açık rose üstünde koyu).
+  onRose: string;
   roseSoft: string;
   border: string;
   borderStrong: string;
@@ -48,6 +50,7 @@ const light: Palette = {
   lilac: '#6A52C8',
   lilacSoft: 'rgba(106, 82, 200, 0.10)',
   rose: '#C2385A',
+  onRose: '#FFFFFF',
   roseSoft: 'rgba(194, 56, 90, 0.10)',
   border: 'rgba(23, 53, 48, 0.10)',
   borderStrong: 'rgba(23, 53, 48, 0.20)',
@@ -74,6 +77,7 @@ const dark: Palette = {
   lilac: '#A895F0',
   lilacSoft: 'rgba(168, 149, 240, 0.14)',
   rose: '#F07D96',
+  onRose: '#0F1F1C',
   roseSoft: 'rgba(240, 125, 150, 0.14)',
   border: 'rgba(230, 242, 238, 0.10)',
   borderStrong: 'rgba(230, 242, 238, 0.20)',

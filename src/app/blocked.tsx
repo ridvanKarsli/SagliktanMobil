@@ -1,5 +1,6 @@
+import { ListSkeleton } from '@/components/feedback';
 import { Alert, FlatList, View } from 'react-native';
-import { Avatar, Button, Card, EmptyState, ErrorState, Loading, Txt, useListContent } from '@/components/ui';
+import { Avatar, Button, Card, EmptyState, ErrorState, Txt, useListContent } from '@/components/ui';
 import { errorMessage } from '@/api/client';
 import { listBlockedUsers, unblockUser } from '@/api/endpoints';
 import { useAsync } from '@/utils/useAsync';
@@ -17,7 +18,7 @@ export default function BlockedScreen() {
     }
   };
 
-  if (blocked.loading && !blocked.data) return <Loading />;
+  if (blocked.loading && !blocked.data) return <ListSkeleton kind="row" count={6} />;
   if (!blocked.data) return <ErrorState message={blocked.error ?? 'Liste yüklenemedi.'} onRetry={blocked.reload} />;
 
   return (
@@ -30,7 +31,7 @@ export default function BlockedScreen() {
       ListEmptyComponent={<EmptyState icon="shield-checkmark-outline" title="Engellediğin kimse yok" text="Engellediğin kişiler sana mesaj gönderemez." />}
       renderItem={({ item }) => (
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Avatar name={item.userName} size={44} />
+          <Avatar name={item.userName} size={40} />
           <View style={{ flex: 1 }}>
             <Txt variant="small" style={{ fontWeight: '700' }}>{item.userName}</Txt>
           </View>

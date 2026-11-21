@@ -1,16 +1,24 @@
 // SagliktanApi'ye ince fetch katmanı (web: SagliktanWeb/src/services/api.js).
 // Token'ı AuthContext'ten alır; 401'de bir kez yenileyip isteği tekrarlar.
-import Constants from 'expo-constants';
 
-const API_BASE: string = (
-  process.env.EXPO_PUBLIC_API_BASE ||
-  (Constants.expoConfig?.extra?.apiBase as string | undefined) ||
-  'https://api.sagliktan.com/api'
-).replace(/\/$/, '');
+import { API_BASE } from '@/config';
 
 const REQUEST_TIMEOUT_MS = 15000;
 export const TIMEOUT_MESSAGE = 'Bağlantı yavaş görünüyor, tekrar dene.';
 export const OFFLINE_MESSAGE = 'İnternet bağlantını kontrol edip tekrar dene.';
+
+// Sunucu bir işlemi "sağlık verisi açık rızası yok" diye reddettiğinde
+// dinleyenlere (ConsentGate) haber verir.
+const consentListeners = new Set<() => void>();
+export function onHealthConsentRequired(listener: () => void): () => void {
+  consentListeners.add(listener);
+  return () => {
+    consentListeners.delete(listener);
+  };
+}
+function notifyHealthConsentRequired() {
+  consentListeners.forEach((l) => l());
+}
 
 export class ApiError extends Error {
   status: number;
@@ -145,6 +153,10 @@ export async function request<T = unknown>(
       const secs = raw ? Number(raw) : NaN;
       const retryAfter = Number.isFinite(secs) ? Math.max(0, Math.round(secs)) : null;
       throw new ApiError(rateLimitMessage(retryAfter), 429, null, retryAfter);
+    }
+    if (res.status === 403 && typeof data?.message === 'string' && /sağlık verisi işleme rızası/i.test(data.message)) {
+      notifyHealthConsentRequired();
+      throw new ApiError('Bu işlem için sağlık bilgilerinin işlenmesine izin vermen gerekiyor.', 403);
     }
     throw new ApiError(specific || data?.message || friendlyFallbackMessage(res.status), res.status, fieldErrors);
   }

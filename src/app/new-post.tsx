@@ -10,6 +10,13 @@ import { useTheme } from '@/theme/ThemeContext';
 import { MAX_PHOTOS, pickPhotos, uploadPhoto, type PickedPhoto } from '@/utils/upload';
 import { LIMITS } from '@/utils/validation';
 
+// İçerik alanının altındaki yardım metni gönderi türüne göre değişir.
+const CONTENT_HELPERS: Record<PostType, string> = {
+  DISCUSSION: 'Kendi deneyimini anlatıyorsun; bu içerik tıbbi tavsiye yerine geçmez.',
+  QUESTION: 'Sorunu ne kadar açık yazarsan o kadar iyi yanıt alırsın. Gelen yanıtlar kişisel deneyimdir, tıbbi tavsiye değildir.',
+  POLL: 'Anketin neyle ilgili olduğunu kısaca yaz. Sonuçlar kişisel görüşleri gösterir, tıbbi tavsiye değildir.',
+};
+
 const TYPES: { value: PostType; label: string }[] = [
   { value: 'DISCUSSION', label: 'Deneyim' },
   { value: 'QUESTION', label: 'Soru' },
@@ -94,7 +101,7 @@ export default function NewPostScreen() {
           multiline
           textAlignVertical="top"
           maxLength={LIMITS.CONTENT_MAX}
-          helper="Kişisel deneyimini paylaşıyorsun; bu içerik tıbbi tavsiye yerine geçmez."
+          helper={CONTENT_HELPERS[type]}
         />
         {type === 'POLL' && (
           <View style={{ gap: 10 }}>
@@ -122,10 +129,11 @@ export default function NewPostScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Fotoğraf ${i + 1} kaldır`}
+                    hitSlop={10}
                     onPress={() => setPhotos((prev) => prev.filter((x) => x.uri !== p.uri))}
                     style={{ position: 'absolute', top: -8, right: -8, width: 28, height: 28, borderRadius: 14, backgroundColor: t.rose, alignItems: 'center', justifyContent: 'center' }}
                   >
-                    <Ionicons name="close" size={16} color="#FFFFFF" />
+                    <Ionicons name="close" size={16} color={t.onRose} />
                   </Pressable>
                 </View>
               ))}

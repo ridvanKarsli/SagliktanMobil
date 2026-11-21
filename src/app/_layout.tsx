@@ -6,6 +6,7 @@ import { BadgeProvider } from '@/context/BadgeContext';
 import { ThemeProvider, useTheme } from '@/theme/ThemeContext';
 import { Loading } from '@/components/ui';
 import ConsentGate from '@/components/ConsentGate';
+import { ToastProvider } from '@/components/feedback';
 
 function RootNavigator() {
   const t = useTheme();
@@ -24,6 +25,7 @@ function RootNavigator() {
           headerShadowVisible: false,
           headerBackButtonDisplayMode: 'minimal',
           contentStyle: { backgroundColor: t.background },
+          animation: 'slide_from_right',
         }}
       >
         <Stack.Protected guard={!isAuthenticated}>
@@ -36,6 +38,7 @@ function RootNavigator() {
           <Stack.Screen name="post/[id]" options={{ title: 'Gönderi' }} />
           <Stack.Screen name="new-post" options={{ title: 'Yeni gönderi', presentation: 'modal' }} />
           <Stack.Screen name="settings" options={{ title: 'Ayarlar' }} />
+          <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="search" options={{ title: 'Ara' }} />
           <Stack.Screen name="users/[id]" options={{ title: 'Profil' }} />
           <Stack.Screen name="message-requests" options={{ title: 'Mesaj istekleri' }} />
@@ -49,6 +52,7 @@ function RootNavigator() {
           <Stack.Screen name="admin/groups" options={{ title: 'Gruplar' }} />
         </Stack.Protected>
         <Stack.Screen name="privacy" options={{ title: 'Aydınlatma ve Açık Rıza' }} />
+        <Stack.Screen name="rules" options={{ title: 'Topluluk kuralları' }} />
       </Stack>
       {isAuthenticated && <ConsentGate />}
     </>
@@ -61,7 +65,9 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <BadgeProvider>
-            <RootNavigator />
+            <ToastProvider>
+              <RootNavigator />
+            </ToastProvider>
           </BadgeProvider>
         </AuthProvider>
       </ThemeProvider>

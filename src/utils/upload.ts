@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { ApiError } from '@/api/client';
+import { isHttps } from '@/config';
 import { requestPresignedUpload } from '@/api/endpoints';
 
 export const MAX_PHOTOS = 6;
@@ -35,6 +36,7 @@ export async function uploadPhoto(photo: PickedPhoto): Promise<string> {
   const blob = await (await fetch(photo.uri)).blob();
   if (blob.size > MAX_BYTES) throw new ApiError('Fotoğraf çok büyük (en fazla 8 MB).', 0);
   const presigned = await requestPresignedUpload(photo.mimeType);
+  if (!isHttps(presigned.uploadUrl) && !__DEV__) throw new ApiError('Güvenli olmayan yükleme adresi reddedildi.', 0);
   const res = await fetch(presigned.uploadUrl, {
     method: 'PUT',
     headers: { 'Content-Type': photo.mimeType },

@@ -34,6 +34,8 @@ düzenle (ör. yerel backend için `http://<bilgisayar-ip>:8080/api`).
 - Anlık bildirim ve mesajlar (STOMP/WebSocket, `/ws`), sohbette fotoğraf gönderme, gönderiyi mesajla paylaşma, engellenenler ekranı
 - Yönetim paneli (yalnızca ADMIN): istatistik, şikayetler, kullanıcılar, içerik, gruplar
 
+- Arayüz cilası: iskelet yükleyiciler, dokunsal geri bildirim, yaylanan beğeni animasyonu, çift dokunmayla faydalı bulma, kaydırmalı fotoğraf galerisi ve tam ekran görüntüleyici, alttan açılan menüler, toast bildirimleri, ikon odaklı sekme çubuğu
+
 Henüz yok: push bildirimleri (uygulama kapalıyken).
 
 ## Yapı

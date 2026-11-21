@@ -6,17 +6,7 @@
 // Kaçırılan olaylar REST yoklamasıyla telafi edilir (bkz. useBadges, chat).
 import { Client, ReconnectionTimeMode, type StompSubscription } from '@stomp/stompjs';
 import { AppState } from 'react-native';
-import Constants from 'expo-constants';
-
-const API_BASE: string = (
-  process.env.EXPO_PUBLIC_API_BASE ||
-  (Constants.expoConfig?.extra?.apiBase as string | undefined) ||
-  'https://api.sagliktan.com/api'
-).replace(/\/$/, '');
-
-// https://host/api -> wss://host/ws
-const WS_URL: string =
-  process.env.EXPO_PUBLIC_WS_URL || API_BASE.replace(/^http/, 'ws').replace(/\/api$/, '') + '/ws';
+import { WS_URL } from '@/config';
 
 type Handler = (payload: unknown) => void;
 type TokenProvider = () => Promise<string | null>;

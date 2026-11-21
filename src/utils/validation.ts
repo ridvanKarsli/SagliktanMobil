@@ -34,6 +34,18 @@ export function emailError(value: string): string | null {
   return null;
 }
 
+// İsteğe bağlı takma ad; sunucudaki desenle aynı kural.
+export const NICKNAME_MAX = 30;
+const NICKNAME_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{1,29}$/u;
+export function nicknameError(value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  if (v.length < 2) return 'Takma ad en az 2 karakter olmalı.';
+  if (v.length > NICKNAME_MAX) return `Takma ad en fazla ${NICKNAME_MAX} karakter olabilir.`;
+  if (!NICKNAME_PATTERN.test(v)) return 'Takma ad harf ya da rakamla başlamalı; harf, rakam, boşluk, nokta, tire ve alt çizgi içerebilir.';
+  return null;
+}
+
 export function nameError(value: string, noun: 'Ad' | 'Soyad'): string | null {
   const v = cleanText(value);
   if (!v) return `${noun} zorunlu.`;

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import PostList from '@/components/PostList';
+import { hapticSelect } from '@/utils/haptics';
 import { Avatar, Chip, Txt } from '@/components/ui';
 import { getMyPosts, getMySavedPosts } from '@/api/endpoints';
 import { useAuth } from '@/context/AuthContext';
@@ -29,37 +28,39 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
+  const stats: [string, number][] = [
+    ['Gönderi', user.postCount],
+    ['Yorum', user.commentCount],
+    ['Faydalı oldu', user.helpedPeople],
+  ];
+
   const header = (
-    <View style={{ gap: 14, marginBottom: 12 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <Avatar name={fullNameOf(user)} size={72} />
-        <View style={{ flex: 1, gap: 4 }}>
-          <Txt variant="h2" numberOfLines={1}>{fullNameOf(user)}</Txt>
-          {user.communityRole && <Chip label={ROLE_LABEL[user.communityRole] ?? 'Üye'} />}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ayarlar"
-          onPress={() => router.push('/settings')}
-          style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }}
-        >
-          <Ionicons name="settings-outline" size={22} color={t.ink} />
-        </Pressable>
-      </View>
-      {user.bio ? <Txt muted>{user.bio}</Txt> : null}
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        {[
-          ['Gönderi', user.postCount],
-          ['Yorum', user.commentCount],
-          ['Faydalı', user.helpedPeople],
-        ].map(([label, n]) => (
-          <View key={label as string} style={{ flex: 1, backgroundColor: t.surface, borderRadius: 14, borderWidth: 1, borderColor: t.border, paddingVertical: 12, alignItems: 'center' }}>
-            <Txt variant="h3">{formatCount(n as number)}</Txt>
-            <Txt variant="caption" muted>{label as string}</Txt>
+    <View style={{ gap: 16, marginBottom: 16 }}>
+      <View style={{ backgroundColor: t.surface, borderRadius: 20, borderWidth: 1, borderColor: t.border, padding: 16, gap: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <Avatar name={fullNameOf(user)} size={64} />
+          <View style={{ flex: 1, gap: 6 }}>
+            <Txt variant="h2" numberOfLines={1}>{fullNameOf(user)}</Txt>
+            {user.communityRole && <Chip label={ROLE_LABEL[user.communityRole] ?? 'Üye'} />}
           </View>
-        ))}
+        </View>
+        {user.bio ? <Txt variant="small" muted>{user.bio}</Txt> : null}
+        <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: t.border, paddingTop: 14 }}>
+          {stats.map(([label, n], i) => (
+            <View
+              key={label}
+              accessible
+              accessibilityLabel={`${n} ${label}`}
+              style={{ flex: 1, alignItems: 'center', gap: 2, borderLeftWidth: i === 0 ? 0 : 1, borderLeftColor: t.border }}
+            >
+              <Txt variant="h3">{formatCount(n)}</Txt>
+              <Txt variant="caption" muted>{label}</Txt>
+            </View>
+          ))}
+        </View>
       </View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
+
+      <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: t.surfaceAlt, borderRadius: 12, padding: 3 }}>
         {(['posts', 'saved'] as const).map((k) => {
           const selected = tab === k;
           return (
@@ -67,10 +68,22 @@ export default function ProfileScreen() {
               key={k}
               accessibilityRole="tab"
               accessibilityState={{ selected }}
-              onPress={() => setTab(k)}
-              style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 999, backgroundColor: selected ? t.primary : t.surface, borderWidth: 1, borderColor: selected ? t.primary : t.borderStrong }}
+              onPress={() => { hapticSelect(); setTab(k); }}
+              style={{
+                flex: 1,
+                minHeight: 38,
+                borderRadius: 10,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: selected ? t.surface : 'transparent',
+                shadowColor: '#000',
+                shadowOpacity: selected ? 0.08 : 0,
+                shadowRadius: 4,
+                shadowOffset: { width: 0, height: 1 },
+                elevation: selected ? 1 : 0,
+              }}
             >
-              <Txt variant="small" color={selected ? t.onPrimary : t.ink} style={{ fontWeight: '700' }}>
+              <Txt variant="small" color={selected ? t.ink : t.inkSoft} style={{ fontWeight: selected ? '700' : '600' }}>
                 {k === 'posts' ? 'Gönderilerim' : 'Kaydedilenler'}
               </Txt>
             </Pressable>

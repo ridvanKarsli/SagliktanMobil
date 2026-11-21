@@ -12,6 +12,8 @@ import {
   emailError,
   nameError,
   newPasswordError,
+  NICKNAME_MAX,
+  nicknameError,
   normalizeEmail,
 } from '@/utils/validation';
 
@@ -22,7 +24,7 @@ const ROLES: { value: CommunityRole; label: string }[] = [
   { value: 'OTHER', label: 'Diğer' },
 ];
 
-type Errors = Partial<Record<'firstName' | 'lastName' | 'email' | 'password' | 'confirm' | 'kvkk' | 'health', string>>;
+type Errors = Partial<Record<'firstName' | 'lastName' | 'email' | 'password' | 'confirm' | 'kvkk' | 'age' | 'nickname', string>>;
 
 export default function RegisterScreen() {
   const t = useTheme();
@@ -35,6 +37,8 @@ export default function RegisterScreen() {
   const [role, setRole] = useState<CommunityRole | null>(null);
   const [kvkk, setKvkk] = useState(false);
   const [health, setHealth] = useState(false);
+  const [age, setAge] = useState(false);
+  const [nickname, setNickname] = useState('');
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -47,7 +51,8 @@ export default function RegisterScreen() {
       password: newPasswordError(password) ?? undefined,
       confirm: confirmPasswordError(confirm, password) ?? undefined,
       kvkk: kvkk ? undefined : 'Kayıt olmak için aydınlatma metnini onaylaman gerekiyor.',
-      health: health ? undefined : 'Kayıt olmak için sağlık verisi açık rızası vermen gerekiyor.',
+      nickname: nicknameError(nickname) ?? undefined,
+      age: age ? undefined : 'Kayıt olmak için 18 yaşından büyük olduğunu onaylaman gerekiyor.',
     };
     setErrors(next);
     if (Object.values(next).some(Boolean)) return;
@@ -62,6 +67,8 @@ export default function RegisterScreen() {
         password,
         kvkkConsent: kvkk,
         healthConsent: health,
+        ageConfirmed: age,
+        nickname: cleanText(nickname) || null,
         communityRole: role,
       });
       router.replace({ pathname: '/verify-email', params: { email: cleanEmail } });
@@ -80,6 +87,16 @@ export default function RegisterScreen() {
         {formError && <Banner tone="error" text={formError} />}
         <TextField label="Ad" value={firstName} onChangeText={setFirstName} error={errors.firstName} autoComplete="given-name" textContentType="givenName" autoCapitalize="words" />
         <TextField label="Soyad" value={lastName} onChangeText={setLastName} error={errors.lastName} autoComplete="family-name" textContentType="familyName" autoCapitalize="words" />
+        <TextField
+          label="Takma ad (isteğe bağlı)"
+          value={nickname}
+          onChangeText={setNickname}
+          error={errors.nickname}
+          helper="Yazarsan toplulukta adın ve soyadın yerine yalnızca bu görünür."
+          autoCapitalize="words"
+          autoCorrect={false}
+          maxLength={NICKNAME_MAX}
+        />
         <TextField label="E-posta" value={email} onChangeText={setEmail} error={errors.email} keyboardType="email-address" autoCapitalize="none" autoComplete="email" autoCorrect={false} textContentType="emailAddress" />
         <TextField label="Şifre" value={password} onChangeText={setPassword} error={errors.password} helper="En az 8 karakter" secure autoCapitalize="none" textContentType="newPassword" />
         <TextField label="Şifre (tekrar)" value={confirm} onChangeText={setConfirm} error={errors.confirm} secure autoCapitalize="none" textContentType="newPassword" />
@@ -119,15 +136,23 @@ export default function RegisterScreen() {
               &apos;nı okudum.
             </Txt>
           </CheckRow>
-          <CheckRow checked={health} onChange={setHealth} error={errors.health}>
-            <Txt variant="small" muted>
-              Üye olduğum hastalık grupları, paylaşımlarım ve profilimde belirttiğim bilgiler gibi sağlık durumuma
-              ilişkin verilerimin,{' '}
+          <CheckRow checked={age} onChange={setAge} error={errors.age}>
+            <Txt variant="small">18 yaşından büyüğüm.</Txt>
+          </CheckRow>
+          <CheckRow checked={health} onChange={setHealth}>
+            <Txt variant="small">
+              <Txt variant="small" style={{ fontWeight: '800' }}>İsteğe bağlı: </Txt>
+              Katıldığım gruplar ve paylaşımlarım gibi sağlıkla ilgili bilgilerimin (kendimin ya da paylaştığım
+              kadarıyla yakınımın),{' '}
               <Link href="/privacy" style={{ color: t.primary, fontWeight: '700' }}>Açık Rıza Metni</Link>
               &apos;nde belirtilen amaçlarla ve yurt dışındaki hizmet sağlayıcılara aktarılarak işlenmesine açık rıza
-              veriyorum. Rızamı Ayarlar&apos;dan istediğim zaman geri alabileceğimi biliyorum.
+              veriyorum.
             </Txt>
           </CheckRow>
+          <Txt variant="small" muted>
+            Şimdi işaretlemezsen hesabın yine açılır; gruba katılmak, paylaşım yapmak ve mesaj yazmak için sonradan
+            sorarız. Rızanı Ayarlar&apos;dan istediğin zaman geri alabilirsin.
+          </Txt>
         </View>
 
         <Button title="Kayıt ol" onPress={submit} loading={loading} />

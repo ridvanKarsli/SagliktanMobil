@@ -36,6 +36,7 @@ export const registerUser = (input: RegisterInput) =>
     auth: false,
     body: {
       ...input,
+      nickname: input.nickname || null,
       city: input.city || null,
       communityRole: input.communityRole || null,
       discoverable: false,
@@ -73,8 +74,22 @@ export const logoutUser = () => request<unknown>('/auth/logout', { method: 'POST
 // --- Kullanıcı ---
 export const getMe = () => request<User>('/users/me');
 
-export const updateProfile = (body: { firstName: string; lastName: string; bio: string | null; city: string | null }) =>
-  request<User>('/users/me', { method: 'PUT', body });
+// nickname: boş string => takma adı kaldır.
+export const updateProfile = (body: {
+  firstName: string;
+  lastName: string;
+  bio: string | null;
+  city: string | null;
+  nickname?: string;
+}) => request<User>('/users/me', { method: 'PUT', body });
+
+export const updateHealthProfile = (body: {
+  communityRole: User['communityRole'];
+  discoverable: boolean;
+  profilePublic: boolean;
+}) => request<User>('/users/me/health-profile', { method: 'PUT', body });
+
+export const completeOnboarding = () => request<User>('/users/me/onboarding/complete', { method: 'POST' });
 
 export const updateHealthConsent = (granted: boolean) =>
   request<User>('/users/me/health-consent', { method: 'PUT', body: { granted } });

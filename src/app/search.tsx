@@ -52,7 +52,7 @@ export default function SearchScreen() {
             {data.users.length > 0 && <Txt variant="h3">Kişiler</Txt>}
             {data.users.map((u) => (
               <Card key={u.id} onPress={() => router.push({ pathname: '/users/[id]', params: { id: String(u.id) } })} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Avatar name={fullNameOf(u)} size={44} />
+                <Avatar name={fullNameOf(u)} size={40} />
                 <View style={{ flex: 1 }}>
                   <Txt variant="small" style={{ fontWeight: '700' }}>{fullNameOf(u)}</Txt>
                   {u.bio ? <Txt variant="caption" muted numberOfLines={1}>{u.bio}</Txt> : null}

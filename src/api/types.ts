@@ -27,6 +27,8 @@ export interface User {
   lastName: string;
   bio: string | null;
   role: 'USER' | 'ADMIN';
+  // Takma ad: yalnızca kişinin kendi kaydında döner (yoksa null).
+  nickname?: string | null;
   emailVerified: boolean;
   createdAt: string;
   postCount: number;
@@ -122,6 +124,8 @@ export interface RegisterInput {
   lastName: string;
   kvkkConsent: boolean;
   healthConsent: boolean;
+  ageConfirmed: boolean;
+  nickname?: string | null;
   city?: string | null;
   communityRole?: CommunityRole | null;
 }

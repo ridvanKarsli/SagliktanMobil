@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Alert, Share, Switch, View } from 'react-native';
+import { Alert, Linking, Share, Switch, View } from 'react-native';
 import { router } from 'expo-router';
 import { Banner, Button, Card, Screen, TextField, Txt } from '@/components/ui';
 import { errorMessage } from '@/api/client';
@@ -8,12 +8,21 @@ import {
   deleteAccount,
   exportMyData,
   updateHealthConsent,
+  updateHealthProfile,
   updatePreferences,
   updateProfile,
 } from '@/api/endpoints';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/theme/ThemeContext';
-import { LIMITS, cleanText, confirmPasswordError, nameError, newPasswordError } from '@/utils/validation';
+import {
+  LIMITS,
+  NICKNAME_MAX,
+  cleanText,
+  confirmPasswordError,
+  nameError,
+  newPasswordError,
+  nicknameError,
+} from '@/utils/validation';
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -32,14 +41,19 @@ function ProfileForm() {
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
   const [lastName, setLastName] = useState(user?.lastName ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
+  const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [msg, setMsg] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const save = async () => {
-    const next = { first: nameError(firstName, 'Ad') ?? undefined, last: nameError(lastName, 'Soyad') ?? undefined };
+    const next = {
+      first: nameError(firstName, 'Ad') ?? undefined,
+      last: nameError(lastName, 'Soyad') ?? undefined,
+      nickname: nicknameError(nickname) ?? undefined,
+    };
     setErrors(next);
-    if (next.first || next.last) return;
+    if (next.first || next.last || next.nickname) return;
     setLoading(true);
     setMsg(null);
     try {
@@ -49,6 +63,8 @@ function ProfileForm() {
           lastName: cleanText(lastName),
           bio: bio.trim() || null,
           city: user?.city ?? null,
+          // Boş gönderilirse takma ad kaldırılır.
+          nickname: cleanText(nickname),
         }),
       );
       setMsg({ tone: 'success', text: 'Profilin güncellendi.' });
@@ -64,6 +80,16 @@ function ProfileForm() {
       {msg && <Banner tone={msg.tone} text={msg.text} />}
       <TextField label="Ad" value={firstName} onChangeText={setFirstName} error={errors.first} autoCapitalize="words" />
       <TextField label="Soyad" value={lastName} onChangeText={setLastName} error={errors.last} autoCapitalize="words" />
+      <TextField
+        label="Takma ad (isteğe bağlı)"
+        value={nickname}
+        onChangeText={setNickname}
+        error={errors.nickname}
+        helper="Yazarsan diğer üyeler adın ve soyadın yerine yalnızca bunu görür. Boş bırakırsan adın görünür."
+        autoCapitalize="words"
+        autoCorrect={false}
+        maxLength={NICKNAME_MAX}
+      />
       <TextField label="Hakkında" value={bio} onChangeText={setBio} multiline textAlignVertical="top" maxLength={LIMITS.BIO_MAX} helper="İsteğe bağlı, kısa bir tanıtım." />
       <Button title="Kaydet" onPress={save} loading={loading} />
     </Card>
@@ -148,6 +174,46 @@ function DigestSwitch() {
   );
 }
 
+// Profilin diğer üyelere açık olup olmadığı. Kapalıyken yalnızca görünen ad
+// görünür; hakkında, şehir, gruplar ve paylaşım listesi gizlenir.
+function ProfileVisibilitySwitch() {
+  const t = useTheme();
+  const { user, applyServerUser } = useAuth();
+  const [busy, setBusy] = useState(false);
+  if (!user) return null;
+  const toggle = async (next: boolean) => {
+    setBusy(true);
+    try {
+      applyServerUser(
+        await updateHealthProfile({
+          communityRole: user.communityRole,
+          discoverable: next && user.discoverable,
+          profilePublic: next,
+        }),
+      );
+    } catch (err) {
+      Alert.alert('İşlem yapılamadı', errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ flex: 1 }}>
+        <Txt variant="small" style={{ fontWeight: '700' }}>Profilim üyelere açık</Txt>
+        <Txt variant="caption" muted>Kapatırsan diğer üyeler yalnızca görünen adını görür.</Txt>
+      </View>
+      <Switch
+        accessibilityLabel="Profilim üyelere açık"
+        value={user.profilePublic}
+        onValueChange={toggle}
+        disabled={busy}
+        trackColor={{ true: t.primary, false: t.borderStrong }}
+      />
+    </Card>
+  );
+}
+
 function PasswordForm() {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -202,7 +268,7 @@ function DangerZone() {
       setError('Şifreni yaz.');
       return;
     }
-    Alert.alert('Hesabını silmek istediğine emin misin?', 'Bu işlem geri alınamaz. Verilerin silinir ya da anonim hale getirilir.', [
+    Alert.alert('Hesabını silmek istediğine emin misin?', 'Bu işlem geri alınamaz. Adın, e-postan ve profil bilgilerin silinir; yazdığın gönderi ve yorumlar da kaldırılır.', [
       { text: 'Vazgeç', style: 'cancel' },
       {
         text: 'Hesabımı sil',
@@ -262,7 +328,15 @@ export default function SettingsScreen() {
         <Section title="Profil" description={user?.email}>
           <ProfileForm />
         </Section>
+        <Section title="Gizlilik">
+          <ProfileVisibilitySwitch />
+        </Section>
         <ConsentSection />
+        <Section title="Görünüm" description="Yazı boyutu telefonunun yazı boyutu ayarını izler; iki katına kadar büyütebilirsin.">
+          <Card>
+            <Button title="Telefon ayarlarını aç" variant="outline" icon="text-outline" onPress={() => Linking.openSettings()} />
+          </Card>
+        </Section>
         <Section title="Bildirimler">
           <DigestSwitch />
         </Section>
@@ -273,6 +347,7 @@ export default function SettingsScreen() {
           <Card style={{ gap: 10 }}>
             <Button title="Verilerimi indir" variant="outline" icon="download-outline" onPress={exportData} loading={exporting} />
             <Button title="Engellenen kullanıcılar" variant="outline" icon="ban-outline" onPress={() => router.push('/blocked')} />
+            <Button title="Topluluk kuralları" variant="ghost" onPress={() => router.push('/rules')} />
             <Button title="Gizlilik ve KVKK" variant="ghost" onPress={() => router.push('/privacy')} />
           </Card>
         </Section>

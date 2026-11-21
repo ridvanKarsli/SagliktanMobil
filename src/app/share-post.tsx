@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Alert, FlatList, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Avatar, Card, EmptyState, ErrorState, Loading, Txt, useListContent } from '@/components/ui';
 import { errorMessage } from '@/api/client';
+import { useToast } from '@/components/feedback';
 import { listConversations, sendChatMessage } from '@/api/endpoints';
 import { usePagedList } from '@/utils/usePagedList';
 
 // Bir gönderiyi mevcut bir sohbete gönderir.
 export default function SharePostScreen() {
   const listContent = useListContent(10);
+  const toast = useToast();
   const { postId } = useLocalSearchParams<{ postId: string }>();
   const list = usePagedList((page, signal) => listConversations({ page, signal }), []);
   const [sendingId, setSendingId] = useState<number | null>(null);
@@ -17,9 +19,10 @@ export default function SharePostScreen() {
     setSendingId(conversationId);
     try {
       await sendChatMessage(conversationId, { sharedPostId: Number(postId) });
-      Alert.alert('Gönderildi', 'Gönderi sohbete eklendi.', [{ text: 'Tamam', onPress: () => router.back() }]);
+      toast.show('Gönderi gönderildi.', 'success');
+      router.back();
     } catch (err) {
-      Alert.alert('Gönderilemedi', errorMessage(err));
+      toast.show(errorMessage(err), 'error');
     } finally {
       setSendingId(null);
     }
@@ -42,7 +45,7 @@ export default function SharePostScreen() {
           onPress={() => (sendingId ? undefined : send(item.id))}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: sendingId === item.id ? 0.6 : 1 }}
         >
-          <Avatar name={item.otherUserName} size={44} />
+          <Avatar name={item.otherUserName} size={40} />
           <View style={{ flex: 1 }}>
             <Txt variant="small" style={{ fontWeight: '700' }}>{item.otherUserName}</Txt>
           </View>

@@ -57,7 +57,7 @@ function Users() {
       renderItem={({ item }) => (
         <Card style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Avatar name={fullNameOf(item)} size={44} />
+            <Avatar name={fullNameOf(item)} size={40} />
             <View style={{ flex: 1 }}>
               <Txt variant="small" style={{ fontWeight: '700' }}>{fullNameOf(item)}</Txt>
               <Txt variant="caption" muted numberOfLines={1}>{item.email}</Txt>

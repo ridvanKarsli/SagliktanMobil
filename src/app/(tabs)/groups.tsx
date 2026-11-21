@@ -1,8 +1,9 @@
+import { ListSkeleton } from '@/components/feedback';
 import { useEffect, useState } from 'react';
 import { FlatList, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Chip, EmptyState, ErrorState, Loading, Screen, TextField, Txt, useListContent } from '@/components/ui';
+import { Card, Chip, EmptyState, ErrorState, Screen, TextField, Txt, useListContent } from '@/components/ui';
 import { listDiseaseGroups } from '@/api/endpoints';
 import { useTheme } from '@/theme/ThemeContext';
 import { formatCount } from '@/utils/format';
@@ -27,7 +28,7 @@ export default function GroupsScreen() {
         <TextField label="Grup ara" value={query} onChangeText={setQuery} placeholder="Örn. diyabet" autoCapitalize="none" returnKeyType="search" />
       </View>
       {groups.loading && !groups.data ? (
-        <Loading />
+        <ListSkeleton kind="row" count={6} />
       ) : groups.error && !groups.data ? (
         <ErrorState message={groups.error} onRetry={groups.reload} />
       ) : (

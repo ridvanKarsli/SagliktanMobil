@@ -66,13 +66,18 @@ export function useListContent(gap = 12) {
 // --- Yazı ---
 type Variant = 'h1' | 'h2' | 'h3' | 'body' | 'small' | 'caption';
 const TYPE: Record<Variant, { fontSize: number; fontWeight: '400' | '600' | '700' | '800'; lineHeight: number }> = {
-  h1: { fontSize: 28, fontWeight: '800', lineHeight: 34 },
-  h2: { fontSize: 22, fontWeight: '800', lineHeight: 28 },
-  h3: { fontSize: 17, fontWeight: '700', lineHeight: 23 },
-  body: { fontSize: 16, fontWeight: '400', lineHeight: 23 },
-  small: { fontSize: 14, fontWeight: '400', lineHeight: 20 },
-  caption: { fontSize: 12.5, fontWeight: '600', lineHeight: 17 },
+  h1: { fontSize: 24, fontWeight: '800', lineHeight: 30 },
+  h2: { fontSize: 20, fontWeight: '800', lineHeight: 26 },
+  h3: { fontSize: 18, fontWeight: '700', lineHeight: 24 },
+  // Az gören üyeler için gövde 17, en küçük yazı 14 punto.
+  body: { fontSize: 17, fontWeight: '400', lineHeight: 26 },
+  small: { fontSize: 15, fontWeight: '400', lineHeight: 22 },
+  caption: { fontSize: 14, fontWeight: '600', lineHeight: 20 },
 };
+
+// Telefonun "yazı boyutu" ayarı iki katına kadar izlenir; görme güçlüğü
+// olan üyeler için bilerek yüksek tutuldu.
+export const MAX_FONT_SCALE = 2;
 
 export function Txt({
   variant = 'body',
@@ -88,7 +93,7 @@ export function Txt({
   const t = useTheme();
   return (
     <Text
-      maxFontSizeMultiplier={1.3}
+      maxFontSizeMultiplier={MAX_FONT_SCALE}
       {...rest}
       style={[TYPE[variant], { color: color ?? (muted ? t.inkSoft : t.ink) }, style]}
     />
@@ -116,7 +121,7 @@ export function Button({
   const t = useTheme();
   const inactive = disabled || loading;
   const bg = variant === 'primary' ? t.primary : variant === 'danger' ? t.rose : 'transparent';
-  const fg = variant === 'primary' ? t.onPrimary : variant === 'danger' ? '#FFFFFF' : variant === 'ghost' ? t.primary : t.primary;
+  const fg = variant === 'primary' ? t.onPrimary : variant === 'danger' ? t.onRose : variant === 'ghost' ? t.primary : t.primary;
   return (
     <Pressable
       accessibilityRole="button"
@@ -139,7 +144,7 @@ export function Button({
       ) : (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {icon && <Ionicons name={icon} size={18} color={fg} />}
-          <Text style={{ color: fg, fontSize: 16, fontWeight: '700' }}>{title}</Text>
+          <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={{ color: fg, fontSize: 16, fontWeight: '700' }}>{title}</Text>
         </View>
       )}
     </Pressable>
@@ -191,7 +196,7 @@ export function TextField({
             setFocused(false);
             rest.onBlur?.(e);
           }}
-          style={{ flex: 1, color: t.ink, fontSize: 16, paddingVertical: 12, minHeight: MIN_TOUCH }}
+          style={{ flex: 1, color: t.ink, fontSize: 17, paddingVertical: 10, minHeight: MIN_TOUCH }}
         />
         {secure && (
           <Pressable
@@ -299,15 +304,22 @@ export function Chip({ label, tone = 'primary', icon }: { label: string; tone?: 
   } as const;
   const [bg, fg] = map[tone];
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: bg, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' }}>
-      {icon && <Ionicons name={icon} size={13} color={fg} />}
-      <Text style={{ color: fg, fontSize: 12.5, fontWeight: '700' }}>{label}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: bg, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3, alignSelf: 'flex-start' }}>
+      {icon && <Ionicons name={icon} size={12} color={fg} />}
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={{ color: fg, fontSize: 13, fontWeight: '700' }}>{label}</Text>
     </View>
   );
 }
 
+// Ada göre sabit, canlı bir renk seçilir (herkes aynı yeşil olmasın).
+const AVATAR_HUES = ['#157461', '#2A6FA6', '#6A52C8', '#C2385A', '#B7791F', '#0E7C86', '#8A4FBF', '#3B7A3B'];
+function avatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_HUES[h % AVATAR_HUES.length];
+}
+
 export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
-  const t = useTheme();
   const initials = name
     .trim()
     .split(/\s+/)
@@ -316,13 +328,15 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
     .map((p) => p[0])
     .join('')
     .toLocaleUpperCase('tr-TR');
+  const color = avatarColor(name);
   return (
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: t.primarySoft, alignItems: 'center', justifyContent: 'center' }}
+      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}
     >
-      <Text style={{ color: t.primary, fontWeight: '800', fontSize: size * 0.38 }}>{initials || '?'}</Text>
+      {/* Baş harfler sabit boyutlu dairenin içinde: yazı ölçeklemesi kapalı. */}
+      <Text allowFontScaling={false} style={{ color: '#FFFFFF', fontWeight: '700', fontSize: size * 0.4 }}>{initials || '?'}</Text>
     </View>
   );
 }
@@ -374,16 +388,16 @@ export function Banner({ text, tone = 'info' }: { text: string; tone?: 'info' | 
   const fg = tone === 'error' ? t.rose : tone === 'success' ? t.primary : t.sky;
   return (
     <View accessibilityRole="alert" style={{ backgroundColor: bg, borderRadius: radius.sm, padding: spacing.md }}>
-      <Text style={{ color: fg, fontSize: 14, fontWeight: '600', lineHeight: 20 }}>{text}</Text>
+      <Text maxFontSizeMultiplier={MAX_FONT_SCALE} style={{ color: fg, fontSize: 15, fontWeight: '600' }}>{text}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: MIN_TOUCH + 4,
+    minHeight: 46,
     borderRadius: radius.pill,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

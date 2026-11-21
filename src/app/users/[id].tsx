@@ -89,7 +89,7 @@ export default function UserProfileScreen() {
   const header = (
     <View style={{ gap: 12, marginBottom: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <Avatar name={fullNameOf(p)} size={72} />
+        <Avatar name={fullNameOf(p)} size={64} />
         <View style={{ flex: 1, gap: 4 }}>
           <Txt variant="h2">{fullNameOf(p)}</Txt>
           {p.communityRole && <Chip label={ROLE_LABEL[p.communityRole] ?? 'Üye'} />}

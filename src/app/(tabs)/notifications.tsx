@@ -1,9 +1,10 @@
+import { ListSkeleton } from '@/components/feedback';
 import { useCallback } from 'react';
-import { FlatList, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, EmptyState, ErrorState, Loading, Txt, useListContent } from '@/components/ui';
+import { Avatar, Button, EmptyState, ErrorState, Txt, useListContent } from '@/components/ui';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '@/api/endpoints';
 import type { AppNotification } from '@/api/types';
 import { useBadgeCounts } from '@/context/BadgeContext';
@@ -66,7 +67,7 @@ export default function NotificationsScreen() {
   return (
     <SafeAreaView edges={['left', 'right']} style={{ flex: 1, backgroundColor: t.background }}>
       {list.loading && list.items.length === 0 ? (
-        <Loading />
+        <ListSkeleton kind="row" count={6} />
       ) : (
         <FlatList
           data={list.items}
@@ -86,18 +87,26 @@ export default function NotificationsScreen() {
           renderItem={({ item }) => {
             const c = COPY[item.type] ?? COPY.NEW_COMMENT;
             return (
-              <Card
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${item.actorName} ${c.text}${item.read ? '' : ', okunmamış'}`}
                 onPress={() => open(item)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: item.read ? t.surface : t.primarySoft }}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, marginHorizontal: -16, paddingHorizontal: 16, backgroundColor: pressed ? t.surfaceAlt : item.read ? 'transparent' : t.primarySoft })}
               >
-                <Ionicons name={c.icon} size={22} color={t.primary} />
+                <View>
+                  <Avatar name={item.actorName} size={40} />
+                  <View style={{ position: 'absolute', right: -4, bottom: -4, width: 22, height: 22, borderRadius: 11, backgroundColor: t.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.border }}>
+                    <Ionicons name={c.icon} size={13} color={t.primary} />
+                  </View>
+                </View>
                 <View style={{ flex: 1 }}>
                   <Txt variant="small">
-                    <Txt variant="small" style={{ fontWeight: '700' }}>{item.actorName}</Txt> {c.text}
+                    <Txt variant="small" style={{ fontWeight: '800' }}>{item.actorName}</Txt> {c.text}
                   </Txt>
                   <Txt variant="caption" muted>{relativeTime(item.createdAt)}</Txt>
                 </View>
-              </Card>
+                {!item.read && <View accessibilityElementsHidden style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.primary }} />}
+              </Pressable>
             );
           }}
         />
